@@ -1,10 +1,17 @@
+import urllib.parse
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.collection import Collection
+import asyncio
 
-mongo_uri = "mongodb://localhost:27017/"
-db_name = "MyQuiz"
+# ✅ Encode the password correctly
+password = urllib.parse.quote_plus("Prerak@13")  # Escapes special characters
 
-client = AsyncIOMotorClient('mongodb://localhost:27017')
-db = client[db_name]
+# ✅ Use the encoded password in the connection string
+MONGO_URI = f"mongodb+srv://prerakp87:{password}@cluster0.jb4qkao.mongodb.net/MyQuiz"
 
+# ✅ Connect to MongoDB Atlas
+client = AsyncIOMotorClient(MONGO_URI)
+db = client["MyQuiz"]
 questionbankdb = db["QuestionBank"]
+
+print("Connected to MongoDB Atlas successfully!")  # ✅ Debugging confirmation
+
