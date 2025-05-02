@@ -1,19 +1,16 @@
 import urllib.parse
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
-import ssl
-ssl_context = ssl.create_default_context()
 
 # ✅ Encode the password correctly
 password = urllib.parse.quote_plus("Prerak@13")  # Escapes special characters
 
 # ✅ Use the encoded password in the connection string
-MONGO_URI = f"mongodb+srv://prerakp87:{password}@cluster0.jb4qkao.mongodb.net/MyQuiz?tls=true"
+MONGO_URI = f"mongodb+srv://prerakp87:{password}@cluster0.jb4qkao.mongodb.net/MyQuiz?retryWrites=true&w=majority"
 
-# ✅ Connect to MongoDB Atlas
-client = AsyncIOMotorClient(MONGO_URI, ssl=True, ssl_cert_reqs=ssl.CERT_NONE)
+# ✅ Connect to MongoDB Atlas with Motor (Auto-Handles SSL/TLS)
+client = AsyncIOMotorClient(MONGO_URI)
 db = client["MyQuiz"]
 questionbankdb = db["QuestionBank"]
 
 print("Connected to MongoDB Atlas successfully!")  # ✅ Debugging confirmation
-
