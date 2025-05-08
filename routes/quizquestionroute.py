@@ -1,53 +1,130 @@
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException
-from database import questionbankdb
+import logging
+from database import get_collection
+from models.quizCRUDmodel import QuizCollection
 from models.quizquestionmodel import QuizSubmission, QuizBatchSubmission
 
 router = APIRouter()
 
+# ✅ Setup logging instead of print()
+logging.basicConfig(level=logging.INFO)
 
-@router.get("/home")
-async def get_quiz_questions():
+# ✅ Fetch all existing questions
+@router.get("/{quiz_name}")
+async def get_quiz_questions(quiz_name: str):
     try:
-        questions = await questionbankdb.find({}, {"_id": 1, "question": 1, "options": 1}).to_list(length=None)
+        quiz_collection = await get_collection(quiz_name)
 
-        # Convert `_id` to string for frontend compatibility
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
+
+        questions = await quiz_collection.find({}, {"_id": 1, "question": 1, "options": 1, "correctAnswer": 1}).to_list(length=None)
+
+        # ✅ Convert `_id` to string for frontend compatibility
         for q in questions:
             q["_id"] = str(q["_id"])
 
-        return {"questions": questions}
+        return {"status": "success", "quiz_name": quiz_name, "questions": questions}
 
     except Exception as e:
-        print("Error fetching questions:", e)
+        logging.error(f"Error fetching questions for '{quiz_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/submit")
-async def handle_quiz_submit(quiz_data: QuizSubmission):
+# ✅ Update questions (edit existing, remove empty ones, add new ones)
+@router.put("/{quiz_name}/update")
+async def update_quiz_questions(quiz_name: str, quiz_data: QuizBatchSubmission):
     try:
-        questions = await questionbankdb.find({}, {"_id": 1, "correctAnswer": 1}).to_list(length=None)
+        quiz_collection = await get_collection(quiz_name)
+
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
+
+        for q in quiz_data.questions:
+            if q.question.strip() == "":
+                await quiz_collection.delete_one({"_id": q._id})  # ✅ Remove empty question
+            else:
+                await quiz_collection.update_one(
+                    {"_id": q._id},
+                    {"$set": q.model_dump()}
+                )
+
+        return {"status": "success", "message": f"Quiz '{quiz_name}' updated successfully!"}
+
+    except Exception as e:
+        logging.error(f"Error updating quiz batch for '{quiz_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ✅ Delete a specific question
+@router.delete("/{quiz_name}/remove/{question_id}")
+async def delete_question(quiz_name: str, question_id: str):
+    try:
+        quiz_collection = await get_collection(quiz_name)
+
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
+
+        result = await quiz_collection.delete_one({"_id": question_id})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Question not found.")
+
+        return {"status": "success", "message": "Question removed successfully!"}
+
+    except Exception as e:
+        logging.error(f"Error deleting question '{question_id}' from '{quiz_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{quiz_name}/submit")
+async def submit_quiz(quiz_name: str, quiz_data: QuizSubmission):
+    try:
+        quiz_collection = await get_collection(quiz_name)
+
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
+
+        # ✅ Fetch correct answers from the database
+        questions = await quiz_collection.find({}, {"_id": 1, "correctAnswer": 1}).to_list(length=None)
         correct_answers = {str(q["_id"]): q["correctAnswer"] for q in questions}
 
-        print(f"Correct Answers: {correct_answers}")  # ✅ Debugging log
-        print(f"User Responses: {quiz_data.responses}")  # ✅ Debugging log
+        logging.info(f"Correct Answers: {correct_answers}")
+        logging.info(f"User Responses: {quiz_data.responses}")
 
+        # ✅ Calculate score
         score = sum(1 for response in quiz_data.responses if correct_answers.get(response.question_id) == response.user_answer)
 
-        print(f"Computed Score: {score}")  # ✅ Debugging log
-        return {"message": "Quiz submitted successfully!", "score": score}
+        logging.info(f"Computed Score: {score}")
+
+        return {
+            "status": "success",
+            "message": f"Quiz '{quiz_name}' submitted!",
+            "score": score
+        }
 
     except Exception as e:
-        print(f"Error handling quiz submission: {e}")
+        logging.error(f"Error submitting quiz '{quiz_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/create-quiz-batch")
-async def create_quiz_batch(quiz_data: QuizBatchSubmission):
+@router.post("/{quiz_name}/create")
+async def create_quiz(quiz_name: str, quiz_data: QuizBatchSubmission):
     try:
-        # ✅ Insert multiple questions into MongoDB
-        result = await questionbankdb.insert_many([q.model_dump() for q in quiz_data.questions])
+        quiz_collection = await get_collection(quiz_name)
 
-        return {"message": "Quiz batch created successfully", "inserted_ids": [str(id) for id in result.inserted_ids]}
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
+
+        # ✅ Add `_id` automatically for each new question
+        questions_with_ids = [{**q.model_dump(), "_id": str(ObjectId())} for q in quiz_data.questions]
+
+        # ✅ Insert new questions into MongoDB
+        result = await quiz_collection.insert_many(questions_with_ids)
+
+        return {
+            "status": "success",
+            "message": f"Quiz '{quiz_name}' created successfully!",
+            "inserted_ids": [str(id) for id in result.inserted_ids]
+        }
 
     except Exception as e:
-        print(f"Error creating quiz batch: {e}")
+        logging.error(f"Error creating quiz '{quiz_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
