@@ -7,7 +7,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["https://quiz-app-frontend-ovgx-1f3wzd9v5-preraks-projects-7de96907.vercel.app"],
     allow_credentials=True,
     allow_headers=["*"],
     allow_methods=["*"],
