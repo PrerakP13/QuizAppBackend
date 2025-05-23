@@ -128,3 +128,27 @@ async def create_quiz(quiz_name: str, quiz_data: QuizBatchSubmission):
     except Exception as e:
         logging.error(f"Error creating quiz '{quiz_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{quiz_name}/remove/{questionId}")
+async def delete_question(quiz_name:str, questionId: str):
+    try:
+        quiz_collection = await get_collection(quiz_name)
+
+        if quiz_collection is None:
+            raise HTTPException(status_code=404, detail=f"No '{quiz_name}' found!")
+
+        result = await quiz_collection.delete_one({"_id":ObjectId(questionId)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail=f"No question found")
+
+        return{
+            "status":"success",
+            "message":f"Question '{questionId}' deleted successfully!"
+        }
+
+
+
+    except Exception as e:
+        logging.error(f"Error deleting question '{questionId}' from '{quiz_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
