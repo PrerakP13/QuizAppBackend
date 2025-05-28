@@ -2,4 +2,5 @@ from pydantic import BaseModel
 
 
 class QuizCollection(BaseModel):
-    QuizName: str
+    quizName: str
+

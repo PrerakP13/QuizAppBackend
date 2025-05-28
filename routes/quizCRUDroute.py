@@ -10,12 +10,12 @@ router = APIRouter()
 @router.post("/add_new_quiz")
 async def add_quiz(new_quiz: QuizCollection):
     try:
-        await create_collection(new_quiz.QuizName)  # ✅ Calls function to create the collection
+        await create_collection(new_quiz.quizName)  # ✅ Calls function to create the collection
 
         return {
             "status": "success",
-            "message": f"Quiz '{new_quiz.QuizName}' created successfully!",
-            "quiz_name": new_quiz.QuizName
+            "message": f"Quiz '{new_quiz.quizName}' created successfully!",
+            "quiz_name": new_quiz.quizName
         }
 
     except Exception as e:
@@ -29,15 +29,23 @@ async def get_quizzes():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/delete_quiz/{quizName}")
-async def delete_quiz(quizName: str):
+
+
+
+
+
+
+@router.delete("/delete_quiz")
+async def delete_quiz(request: QuizCollection):  # ✅ Expect JSON body instead of a query param
     try:
-        await delete_collection(quizName)
+        logging.info(f"Received DELETE request for quiz: {request.quizName}")
+        await delete_collection(request.quizName)
         return {
             "status": "success",
-            "message": f"Successfully deleted quiz '{quizName}'"
-            }
+            "message": f"Successfully deleted quiz '{request.quizName}'"
+        }
     except Exception as e:
+        logging.error(f"Error deleting quiz '{request.quizName}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/update_quiz/{quizName}")
