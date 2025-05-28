@@ -31,7 +31,7 @@ async def get_quiz_questions(quiz_name: str):
         logging.error(f"Error fetching questions for '{quiz_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ Update questions (edit existing, remove empty ones, add new ones)
+# ✅ Route to update quiz questions
 @router.put("/{quiz_name}/update")
 async def update_quiz_questions(quiz_name: str, quiz_data: QuizBatchSubmission):
     try:
@@ -40,16 +40,21 @@ async def update_quiz_questions(quiz_name: str, quiz_data: QuizBatchSubmission):
         if quiz_collection is None:
             raise HTTPException(status_code=404, detail=f"Quiz '{quiz_name}' not found.")
 
-        for q in quiz_data.questions:
-            if q.question.strip() == "":
-                await quiz_collection.delete_one({"_id": q._id})  # ✅ Remove empty question
-            else:
-                await quiz_collection.update_one(
-                    {"_id": q._id},
-                    {"$set": q.model_dump()}
-                )
+        # ✅ Step 1: Delete all old questions
+        await quiz_collection.delete_many({})
 
+        # ✅ Step 2: Insert new updated questions
+        new_questions = [q.model_dump() for q in quiz_data.questions]
+        inserted = await quiz_collection.insert_many(new_questions)
+
+        # ✅ Step 3: Log success & return response
+        logging.info(f"Updated quiz '{quiz_name}' with {len(inserted.inserted_ids)} questions.")
         return {"status": "success", "message": f"Quiz '{quiz_name}' updated successfully!"}
+
+    except Exception as e:
+        logging.error(f"Error updating quiz batch for '{quiz_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
     except Exception as e:
         logging.error(f"Error updating quiz batch for '{quiz_name}': {e}")
